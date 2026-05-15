@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import mysql.connector
 import seaborn as sns
 import matplotlib.pyplot as plt
 import io
@@ -417,7 +416,7 @@ def load_data():
 
     conn = sqlite3.connect("database.db")
 
-    query = "SELECT * FROM data_model"
+    query = "SELECT * FROM fdm_1500"
 
     df = pd.read_sql(query, conn)
 
@@ -1337,7 +1336,696 @@ alt.themes.register("transparent_theme", transparent_theme)
 alt.themes.enable("transparent_theme")
 
 
+# ============================================================
+# STEP 3 – EDA (LOCKED UNTIL PREPROCESSING)
+# ============================================================
+
+if not st.session_state.preprocessing_completed:
+    st.info("ℹ Please apply at least one data pre-processing step to unlock EDA.")
+    st.stop()
+
+
+df = st.session_state.get("df", None)
+
+if df is None:
+    st.warning("⚠ No dataset available.")
+    st.stop()
+
+if "eda_completed" not in st.session_state:
+    st.session_state.eda_completed = False
+
+
+ # ---------------- EDA HEADER ----------------
+st.markdown(
+    """
+    <div style="
+        background-color:#0B2C5D;
+        padding:18px 25px;
+        border-radius:10px;
+        color:white;
+        margin-top:20px;
+        margin-bottom:10px;
+    ">
+        <h3 style="margin:0;">Exploratory Data Analysis (EDA)</h3>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.write("")
+st.info(f"Dataset Loaded: **{df.shape[0]} rows × {df.shape[1]} columns**")
+st.write("")
+# ---------------- EDA INTRO CARD ----------------
+st.markdown(
+    """
+    <div style="
+        background-color:#2F75B5;
+        padding:28px;
+        border-radius:12px;
+        color:white;
+        font-size:16px;
+        line-height:1.6;
+        margin-bottom:20px;
+    ">
+
+    <b>Exploratory Data Analysis (EDA)</b><br><br>
+
+    Provides <b>high-level insights</b> to understand data behavior before model engineering.<br><br>
+
+    <b>Key Insights Generated:</b>
+    <ul>
+        <li>Sales and revenue trends across products and categories</li>
+        <li>Fast-moving and slow-moving SKU identification</li>
+        <li>Stock availability, overstock, and understock analysis</li>
+        <li>Reorder planning and stockout risk monitoring</li>
+        <li>Supplier lead time and delivery performance evaluation</li>
+        <li>Procurement cost and purchasing behavior analysis</li>
+        <li>Weather, events, and social trends impact on demand</li>
+        <li>Store-wise and city-wise sales performance comparison</li>
+    </ul>
+
+    This section focuses on <b>interpretability</b>, not deep statistical modeling.
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ============================================================
+# COLUMN MAPPING (SAFE & SIMPLE)
+# ============================================================
+
+def map_col(candidates):
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+col_rev     = map_col(["Sales_Revenue"])
+col_qty     = map_col(["Quantity_Sold"])
+col_price   = map_col(["Unit_Price"])
+col_date    = map_col(["Date"])
+col_product = map_col(["Product_ID"])
+col_store   = map_col(["Store_ID"])
+col_channel = map_col(["Payment_Type"])
+col_event   = map_col(["Event_ID"])
+col_promo   = map_col(["Promo_ID"])
+col_Transaction = map_col(["Transaction_ID"])
+
+num_df = df.select_dtypes(include=np.number)
+
+# ============================================================
+# EDA NAVIGATION
+# ============================================================
+# =========================
+# EDA NAVIGATION – ACTIVE BUTTON HIGHLIGHT (SAFE)
+# =========================
+
+# =========================
+# EDA NAVIGATION (INSTANT COLOR CHANGE)
+# =========================
+
+st.markdown(
+    "<h3 style='color:black;'>List of Analytics</h3>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    "<div style='margin-top:6px'></div>",
+    unsafe_allow_html=True
+)
+
+
+
+if "eda_option" not in st.session_state:
+    st.session_state.eda_option = None
+
+
+def nav_button(label, value):
     
+    """Instant active highlight + no size change"""
+    if st.session_state.eda_option == value:
+        st.markdown(
+            f"""
+            <div style="
+                background-color:#4F97EE
+;
+                color:white;
+                padding:14px;
+                border-radius:10px;
+                font-weight:600;
+                text-align:center;
+                margin-bottom:12px;
+            ">
+                {label}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        if st.button(label, use_container_width=True):
+            st.session_state.eda_option = value
+            st.rerun() 
+
+with st.expander(" ", expanded=True):
+    row1 = st.columns(5)
+    row2 = st.columns(4)
+
+    with row1[0]:
+        nav_button("Data Quality Overview", "Data Quality Overview")
+    with row1[1]:
+        nav_button("Sales Overview", "Sales Overview")
+    with row1[2]:
+        nav_button("Demand Forecasting Analysis", "Demand Forecasting Analysis")
+    with row1[3]:
+        nav_button("Inventory & Stock Analysis", "Inventory & Stock Analysis")
+    with row1[4]:
+        nav_button("Predictive Replenishment Analysis", "Predictive Replenishment Analysis")
+
+    with row2[0]:
+        nav_button("Supplier & Lead Time Analysis", "Supplier & Lead Time Analysis")
+    with row2[1]:
+        nav_button("Store-Level Analysis", "Store-Level Analysis")
+    with row2[2]:
+        nav_button("External Factors Impact Analysis", "External Factors Impact Analysis")
+    with row2[3]:
+        nav_button("Summary Report", "Summary Report")
+
+
+eda_option = st.session_state.eda_option
+if eda_option is not None:
+    st.session_state.eda_completed = True
+st.markdown(
+    "<div style='margin-top:6px'></div>",
+    unsafe_allow_html=True
+)
+
+if eda_option is None:
+    st.info("Select an analysis to view insights.")
+
+# ============================================================
+# EDA ROUTER (⚠️ DO NOT BREAK THIS STRUCTURE)
+# ============================================================
+
+if eda_option == "Data Quality Overview":
+
+    st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:28px;
+            border-radius:12px;
+            color:white;
+            font-size:16px;
+            line-height:1.6;
+            margin-bottom:20px;
+        ">
+
+        <b>What this section does:</b>
+
+        This section provides a <b>high-level health check</b> of the dataset before any modeling or forecasting is attempted.
+
+        It evaluates:
+        <ul>
+            <li>Missing values</li>
+            <li>Duplicate records</li>
+            <li>Data type consistency</li>
+            <li>Overall row and column completeness</li>
+        </ul>
+
+        <b>Why this matters:</b>
+
+        Demand forecasting models are highly sensitive to <b>poor data quality</b>.
+        Even small inconsistencies (missing prices, invalid quantities, duplicate transactions)
+        can significantly distort predictions.<br>
+
+        <b>Key insights users get:</b>
+        <ul>
+            <li>Whether the dataset is <b>model-ready</b></li>
+            <li>Which columns require cleaning or transformation</li>
+            <li>Confidence in the reliability of downstream analysis</li>
+        </ul>
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # PREPARE DATA
+    # =========================
+    rows_count = df.shape[0]
+    cols_count = df.shape[1]
+    
+    dup_count = df.duplicated().sum()
+    dtype_counts = df.dtypes.value_counts()
+
+    mv = (df.isnull().mean() * 100).round(2).sort_values(ascending=False)
+
+    # =========================
+    # DATASET SHAPE
+    # =========================
+    st.markdown(
+        f"""
+        <div class="quality-card">
+            <div class="quality-title">Dataset Shape</div>
+            <table class="clean-table">
+                <tr><th>Metric</th><th>Value</th></tr>
+                <tr><td>Total Rows</td><td>{rows_count}</td></tr>
+                <tr><td>Total Columns</td><td>{cols_count}</td></tr>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # MISSING VALUE ANALYSIS
+    # =========================
+    st.markdown(
+        f"""
+        <div class="quality-card">
+            <div class="quality-title">Missing Value Analysis (%)</div>
+            <div class="table-scroll">
+                <table class="clean-table">
+                    <tr><th>Column Name</th><th>Missing (%)</th></tr>
+                    {''.join([f"<tr><td>{c}</td><td>{v}%</td></tr>" for c, v in mv.items()])}
+                </table>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # DUPLICATE ANALYSIS
+    # =========================
+    st.markdown(
+        f"""
+        <div class="quality-card">
+            <div class="quality-title">Duplicate Analysis</div>
+            <table class="clean-table">
+                <tr><th>Metric</th><th>Value</th></tr>
+                <tr><td>Total Duplicate Rows</td><td>{dup_count}</td></tr>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =========================
+    # DATA TYPES SUMMARY
+    # =========================
+    st.markdown(
+        f"""
+        <div class="quality-card">
+            <div class="quality-title">Data Types Summary</div>
+            <table class="clean-table">
+                <tr><th>Data Type</th><th>Column Count</th></tr>
+                {''.join([f"<tr><td>{d}</td><td>{c}</td></tr>" for d, c in dtype_counts.items()])}
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+elif eda_option == "Sales Overview":
+    st.markdown(
+    """
+    <div style="
+        background-color:#2F75B5;
+        padding:28px;
+        border-radius:12px;
+        color:white;
+        font-size:16px;
+        line-height:1.6;
+        margin-bottom:20px;
+    ">
+
+    <b>What this section does:</b>
+
+    This provides a <b>macro-level snapshot of sales performance</b>
+
+
+    It typically highlights:
+    <ul>
+        <li>Total revenue</li>
+        <li>Total units sold</li>
+        <li>Average order value</li>
+        <li>Sales trends over time</li>
+    </ul><br>
+
+    <b>Why this matters:</b>
+
+    Before diving into granular analysis, it’s important to understand:
+    <ul>
+        <li>Overall business scale</li>
+        <li>Growth or decline patterns</li>
+        <li>Presence of seasonality or anomalies</li>
+    </ul><br>
+
+    <b>Key insights users get:</b>
+    <ul>
+        <li>Baseline sales behavior</li>
+        <li>Early signals of trends or volatility</li>
+        <li>Context for all deeper analyses</li>
+    </ul>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+    st.markdown("###  Sales Overview")
+           # ---------- ROW 1 ----------
+    st.markdown(
+        """
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-title">Total Revenue</div>
+                <div class="summary-value">{}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Average Order Value</div>
+                <div class="summary-value">{}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Maximum Order Value</div>
+                <div class="summary-value">{}</div>
+            </div>
+        </div>
+        """.format(
+            f"${df[col_rev].sum():,.2f}" if col_rev else "NA",
+            f"${df[col_rev].mean():,.2f}" if col_rev else "NA",
+            f"${df[col_rev].max():,.2f}" if col_rev else "NA",
+        ),
+        unsafe_allow_html=True
+        )
+
+        # ---------- ROW 2 ----------
+    st.markdown(
+        """
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-title">Total Sales</div>
+                <div class="summary-value">{}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Total Units Sold</div>
+                <div class="summary-value">{}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Average Units / Transaction</div>
+                <div class="summary-value">{}</div>
+            </div>
+        </div>
+        """.format(
+            f"${(df[col_qty] * df[col_price]).sum():,.2f}" if col_qty and col_price else "NA",
+            f"{df[col_qty].sum():,}" if col_qty else "NA",
+            f"{df[col_qty].mean():.2f}" if col_qty else "NA",
+        ),
+        unsafe_allow_html=True
+        )
+
+    st.write("")
+    st.write("")
+
+
+    if "Date" in df.columns and col_rev:
+   
+            st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:18px 25px;
+            border-radius:10px;
+            font-size:20px;
+            color:white;
+            margin-top:20px;
+            margin-bottom:10px;
+            text-align:center;
+        ">
+            <b>Sales By Year</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df = df.dropna(subset=["Date"])
+
+    df["Year"] = df["Date"].dt.year
+    df["Quarter"] = df["Date"].dt.to_period("Q").astype(str)
+    df["Month"] = df["Date"].dt.to_period("M").astype(str)
+
+    sales_by_year = (
+        df.groupby("Year")[col_rev]
+        .sum()
+        .sort_index()
+    )
+    
+    chart = (
+            alt.Chart(sales_by_year.reset_index())
+            .mark_bar(color="#001F5C",cornerRadiusEnd=6)
+            .encode(
+                x=alt.X("Year:O", title="Year"),
+                y=alt.Y(f"{col_rev}:Q", title="Revenue",scale=alt.Scale(padding=10)),
+                tooltip=["Year", col_rev]
+            )
+            .properties(
+                height=380,
+                background="#00D05E",
+                padding={"top": 10, "left": 10, "right": 10, "bottom": 10}
+            )
+            .configure_view(
+                fill="#00D05E",
+                strokeOpacity=0
+            )
+            .configure_axis(
+                labelColor="#000000",
+                titleColor="#000000",
+                gridColor="rgba(0,0,0,0.2)",
+                domainColor="rgba(0,0,0,0.3)"
+            )
+        )
+
+    st.altair_chart(chart, use_container_width=True)
+   
+    
+
+    st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:18px 25px;
+            border-radius:10px;
+            font-size:20px;
+            color:white;
+            margin-top:20px;
+            margin-bottom:10px;
+            text-align:center;
+        ">
+            <b>Sales By Quaters</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Aggregate revenue by quarter
+    sales_by_quarter = (
+        df.groupby("Quarter")[col_rev]
+        .sum()
+        .sort_index()
+    )
+
+    # Altair chart with SAME layout/template as yearly chart
+    chart_quarter = (
+        alt.Chart(sales_by_quarter.reset_index())
+        .mark_bar(color="#001F5C", cornerRadiusEnd=6)
+        .encode(
+            x=alt.X("Quarter:O", title="Quarter"),
+            y=alt.Y(f"{col_rev}:Q", title="Revenue", scale=alt.Scale(padding=10)),
+            tooltip=["Quarter", col_rev]
+        )
+        .properties(
+            height=380,
+            background="#00D05E",
+            padding={"top": 10, "left": 10, "right": 10, "bottom": 10}
+        )
+        .configure_view(
+            fill="#00D05E",
+            strokeOpacity=0
+        )
+        .configure_axis(
+            labelColor="#000000",
+            titleColor="#000000",
+            gridColor="rgba(0,0,0,0.2)",
+            domainColor="rgba(0,0,0,0.3)"
+        )
+    )
+
+    st.altair_chart(chart_quarter, use_container_width=True)
+
+
+    st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:18px 25px;
+            border-radius:10px;
+            font-size:20px;
+            color:white;
+            margin-top:20px;
+            margin-bottom:10px;
+            text-align:center;
+        ">
+            <b>Sales By Month</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # Aggregate revenue by month
+    sales_by_month = (
+        df.groupby("Month")[col_rev]
+        .sum()
+        .sort_index()
+    )
+
+    # Altair chart with SAME layout/template
+    chart_month = (
+        alt.Chart(sales_by_month.reset_index())
+        .mark_bar(color="#001F5C", cornerRadiusEnd=6)
+        .encode(
+            x=alt.X("Month:O", title="Month"),
+            y=alt.Y(f"{col_rev}:Q", title="Revenue", scale=alt.Scale(padding=10)),
+            tooltip=["Month", col_rev]
+        )
+        .properties(
+            height=380,
+            background="#00D05E",
+            padding={"top": 10, "left": 10, "right": 10, "bottom": 10}
+        )
+        .configure_view(
+            fill="#00D05E",
+            strokeOpacity=0
+        )
+        .configure_axis(
+            labelColor="#000000",
+            titleColor="#000000",
+            gridColor="rgba(0,0,0,0.2)",
+            domainColor="rgba(0,0,0,0.3)"
+        )
+    )
+
+    st.altair_chart(chart_month, use_container_width=True)
+
+
+
+
+
+    if col_store and col_rev:
+            st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:18px 25px;
+            border-radius:10px;
+            font-size:20px;
+            color:white;
+            margin-top:20px;
+            margin-bottom:10px;
+            text-align:center;
+        ">
+            <b>Sales By Store</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # Aggregate revenue by store
+    sales_store = (
+        df.groupby(col_store)[col_rev]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    # Altair chart with SAME layout/template
+    chart_store = (
+        alt.Chart(sales_store.reset_index())
+        .mark_bar(color="#001F5C", cornerRadiusEnd=6)
+        .encode(
+            x=alt.X(f"{col_store}:O", title="Store"),
+            y=alt.Y(f"{col_rev}:Q", title="Revenue", scale=alt.Scale(padding=10)),
+            tooltip=[col_store, col_rev]
+        )
+        .properties(
+            height=380,
+            background="#00D05E",
+            padding={"top": 10, "left": 10, "right": 10, "bottom": 10}
+        )
+        .configure_view(
+            fill="#00D05E",
+            strokeOpacity=0
+        )
+        .configure_axis(
+            labelColor="#000000",
+            titleColor="#000000",
+            gridColor="rgba(0,0,0,0.2)",
+            domainColor="rgba(0,0,0,0.3)"
+        )
+    )
+
+    st.altair_chart(chart_store, use_container_width=True)
+
+    if col_channel and col_rev:
+            st.markdown(
+        """
+        <div style="
+            background-color:#2F75B5;
+            padding:18px 25px;
+            border-radius:10px;
+            font-size:20px;
+            color:white;
+            margin-top:20px;
+            margin-bottom:10px;
+            text-align:center;
+        ">
+            <b>Sales By Sales Channels</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Aggregate revenue by channel
+    sales_channel = (
+        df.groupby(col_channel)[col_rev]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    # Altair chart with SAME layout/template
+    chart_channel = (
+        alt.Chart(sales_channel.reset_index())
+        .mark_bar(color="#001F5C", cornerRadiusEnd=6)
+        .encode(
+            x=alt.X(f"{col_channel}:O", title="Channel"),
+            y=alt.Y(f"{col_rev}:Q", title="Revenue", scale=alt.Scale(padding=10)),
+            tooltip=[col_channel, col_rev]
+        )
+        .properties(
+            height=380,
+            background="#00D05E",
+            padding={"top": 10, "left": 10, "right": 10, "bottom": 10}
+        )
+        .configure_view(
+            fill="#00D05E",
+            strokeOpacity=0
+        )
+        .configure_axis(
+            labelColor="#000000",
+            titleColor="#000000",
+            gridColor="rgba(0,0,0,0.2)",
+            domainColor="rgba(0,0,0,0.3)"
+        )
+    )
+
+    st.altair_chart(chart_channel, use_container_width=True)
+
 # ============================================================
 # FOOTER
 # ============================================================

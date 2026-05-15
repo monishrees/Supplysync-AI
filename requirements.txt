@@ -4,7 +4,8 @@ numpy
 matplotlib
 seaborn
 scikit-learn
-mysql-connector-python
 altair
 plotly
 streamlit-option-menu
+sqlite3
+time

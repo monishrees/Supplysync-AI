@@ -1,12 +1,15 @@
 import pandas as pd
 import sqlite3
 
-df = pd.read_csv("data_model.csv")
+# Read CSV correctly
+df_csv = pd.read_csv("fdm_1500.csv", sep=",")
 
+# Connect database
 conn = sqlite3.connect("database.db")
 
-df.to_sql("data_model", conn, if_exists="replace", index=False)
+# Replace old wrong table
+df_csv.to_sql("fdm_1500", conn, if_exists="replace", index=False)
 
 conn.close()
 
-print("Database created successfully")
+print("Table created successfully")
