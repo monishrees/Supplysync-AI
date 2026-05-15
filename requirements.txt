@@ -7,5 +7,4 @@ scikit-learn
 altair
 plotly
 streamlit-option-menu
-sqlite3
 time
