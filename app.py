@@ -7767,6 +7767,354 @@ elif selected_model == "Deep Learning Forecast":
         st.info(f"Forecast horizon: {forecast_days} days")
 
 # ============================================================
+# STAGE 2 : DEMAND PATTERN ANALYSIS
+# ============================================================
+
+import pandas as pd
+from scipy.stats import linregress
+
+st.markdown("""
+<div style="
+background-color:#0B2C5D;
+padding:20px;
+border-radius:12px;
+color:white;
+font-size:20px;
+font-weight:600;
+margin-top:40px;
+margin-bottom:20px;
+text-align:center;
+">
+Demand Pattern Analysis
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# DATA PREPARATION
+# ============================================================
+
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+
+# ============================================================
+# ANALYSIS PERIOD
+# ============================================================
+
+start_date = df["Date"].min()
+end_date = df["Date"].max()
+
+analysis_days = (end_date - start_date).days
+total_records = len(df)
+
+st.markdown("""
+    <div style='background:#2F75B5;padding:15px;border-radius:10px;margin-top:20px;color:white;'>
+    <b>Analysis Period Summary</b>
+    </div>
+    """, unsafe_allow_html=True)
+st.markdown("")
+
+st.markdown( f"""
+    <div style="
+            background-color:#2F75B5;
+            padding:28px;
+            border-radius:12px;
+            color:white;
+            font-size:16px;
+            line-height:1.6;
+            margin-bottom:25px;">
+
+    <b>Start Date :</b> {start_date.strftime("%d-%b-%Y")}<br>
+    <b>End Date :</b> {end_date.strftime("%d-%b-%Y")}<br>
+    <b>Analysis Period :</b> {analysis_days} Days<br>
+    <b>Records :</b> {total_records:,}<br>
+        </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ============================================================
+# DEMAND STATISTICS
+# ============================================================
+
+mean_demand = df["Quantity_Sold"].mean()
+std_demand = df["Quantity_Sold"].std()
+variance_demand = df["Quantity_Sold"].var()
+
+# ============================================================
+# COEFFICIENT OF VARIATION
+# ============================================================
+
+cv = std_demand / mean_demand
+
+if cv < 0.5:
+    demand_classification = "Smooth Demand"
+elif cv < 1:
+    demand_classification = "Erratic Demand"
+else:
+    demand_classification = "Lumpy Demand"
+
+# ============================================================
+# DEMAND VOLATILITY
+# ============================================================
+
+volatility_score = cv * 100
+
+if volatility_score < 20:
+    volatility_level = "Low"
+
+elif volatility_score < 50:
+    volatility_level = "Moderate"
+
+else:
+    volatility_level = "High"
+
+# ============================================================
+# DEMAND STABILITY INDEX
+# ============================================================
+
+stability_index = max(0, 1 - cv)
+
+# ============================================================
+# TREND ANALYSIS
+# ============================================================
+
+trend_df = (
+    df.groupby("Date")["Quantity_Sold"]
+    .sum()
+    .reset_index()
+)
+
+trend_df["time_index"] = range(len(trend_df))
+
+slope, intercept, r_value, p_value, std_err = linregress(
+    trend_df["time_index"],
+    trend_df["Quantity_Sold"]
+)
+
+if slope > 0:
+    trend_result = "📈 Increasing"
+
+elif slope < 0:
+    trend_result = "📉 Decreasing"
+
+else:
+    trend_result = "➡ Stable"
+
+# ============================================================
+# DEMAND GROWTH RATE
+# ============================================================
+
+first_demand = trend_df["Quantity_Sold"].iloc[0]
+last_demand = trend_df["Quantity_Sold"].iloc[-1]
+
+if first_demand != 0:
+    growth_rate = (
+        (last_demand - first_demand)
+        / first_demand
+    ) * 100
+else:
+    growth_rate = 0
+
+# ============================================================
+# SEASONALITY DETECTION
+# ============================================================
+
+monthly_pattern = (
+    df.groupby(df["Date"].dt.month)["Quantity_Sold"]
+    .mean()
+    .reset_index()
+)
+
+seasonality_strength = monthly_pattern["Quantity_Sold"].std()
+
+if seasonality_strength > (mean_demand * 0.10):
+    seasonality_result = "Detected"
+else:
+    seasonality_result = "No Strong Seasonality"
+
+# ============================================================
+# PEAK DEMAND ANALYSIS
+# ============================================================
+
+peak_demand = df["Quantity_Sold"].max()
+minimum_demand = df["Quantity_Sold"].min()
+
+# ============================================================
+# STOCKOUT RISK
+# ============================================================
+
+if cv < 0.5:
+    stockout_risk = "Low"
+
+elif cv < 1:
+    stockout_risk = "Medium"
+
+else:
+    stockout_risk = "High"
+
+# ============================================================
+# FORECAST READINESS
+# ============================================================
+
+if cv < 0.5 and seasonality_result == "Detected":
+    forecast_readiness = "Excellent"
+
+elif cv < 1:
+    forecast_readiness = "Good"
+
+else:
+    forecast_readiness = "Challenging"
+
+# ============================================================
+# METRICS
+# ============================================================
+st.markdown("""
+    <div style='background:#2F75B5;padding:15px;border-radius:10px;margin-top:20px;color:white;'>
+    <b>Demand Statistics</b>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("")
+
+st.markdown( f"""
+    <div style="
+            background-color:#2F75B5;
+            padding:28px;
+            border-radius:12px;
+            color:white;
+            font-size:16px;
+            line-height:1.6;
+            margin-bottom:25px;">
+
+    <b>Mean Demand :</b> {mean_demand:.2f}<br>
+    <b>Standard Deviation :</b> {std_demand:.2f}<br>
+    <b>Variance :</b> {variance_demand:.2f}<br>
+    <b>Coefficient of Variation :</b> {cv:.2f}<br>
+    <b>Demand Volatility :</b> {volatility_score:.2f}%<br>
+    <b>Stability Index :</b> {stability_index:.2f}<br>
+    <b>Trend :</b> {trend_result}<br>
+    <b>Growth Rate :</b> {growth_rate:.2f}%<br>
+    <b>Seasonality :</b> {seasonality_result}<br>
+    <b>Peak Demand :</b> {peak_demand}<br>
+    <b>Minimum Demand :</b> {minimum_demand}<br>
+    <b>Stockout Risk :</b> {stockout_risk}<br>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# DEMAND CLASSIFICATION
+# ============================================================
+
+st.markdown(
+    f"""
+    <div style='
+        background:#2F75B5;
+        padding:15px;
+        border-radius:10px;
+        margin-top:20px;
+        color:white;
+        font-size:18px;
+        font-weight:600;
+        text-align:center;
+    '>
+        Demand Classification : {demand_classification}
+    </div>
+    """,
+    unsafe_allow_html=True
+) 
+
+# ============================================================
+# SEASON-WISE DEMAND ANALYSIS
+# ============================================================
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown(
+            f"<h4 style='color:#000000;'> Season-wise Demand Analysis</h4>",
+            unsafe_allow_html=True
+        )
+
+season_analysis = (
+    df.groupby("Season")["Quantity_Sold"]
+    .agg(
+        Average_Demand="mean",
+        Total_Demand="sum",
+        Peak_Demand="max",
+        Minimum_Demand="min"
+    )
+    .reset_index()
+)
+
+season_analysis = season_analysis.sort_values(
+    "Average_Demand",
+    ascending=False
+)
+
+overall_mean = df["Quantity_Sold"].mean()
+
+season_analysis["Seasonal_Index"] = (
+    season_analysis["Average_Demand"]
+    / overall_mean
+)
+
+st.dataframe(
+    season_analysis.round(2),
+    use_container_width=True,
+     hide_index=True
+)
+
+highest_season = season_analysis.iloc[0]
+lowest_season = season_analysis.iloc[-1]
+
+st.markdown(
+    f"""
+    <p style="color:black; font-size:16px;">
+        <b>Highest Demand Season :</b> {highest_season['Season']}
+    </p>
+
+    <p style="color:black; font-size:16px;">
+        <b>Lowest Demand Season :</b> {lowest_season['Season']}
+    </p>
+    """,
+    unsafe_allow_html=True
+)
+
+# ============================================================
+# BUSINESS INSIGHTS
+# ============================================================
+
+st.markdown(
+    f"""
+    <div style="
+            background-color:#2F75B5;
+            padding:28px;
+            border-radius:12px;
+            color:white;
+            font-size:16px;
+            line-height:1.6;
+            margin-bottom:25px;">
+
+    <h4>Executive Demand Insights</h4>
+
+    <ul>
+        <li>Demand was analyzed using <b>{total_records:,}</b> historical records covering <b>{analysis_days}</b> days.</li>
+        <li>Average demand is <b>{mean_demand:.2f}</b> units with a standard deviation of <b>{std_demand:.2f}</b>.</li>
+        <li>Demand variability is <b>{volatility_level}</b> with a volatility score of <b>{volatility_score:.2f}%</b>.</li>
+        <li>Overall demand trend is <b>{trend_result}</b> with a growth rate of <b>{growth_rate:.2f}%</b>.</li>
+        <li>Seasonal demand patterns are <b>{seasonality_result}</b>.</li>
+        <li>Highest demand occurs during <b>{highest_season['Season']}</b> season.</li>
+        <li>Stockout risk is classified as <b>{stockout_risk}</b>.</li>
+        <li>Forecast readiness score is <b>{forecast_readiness}</b>, indicating suitability for inventory forecasting and replenishment planning.</li>
+        <li>These insights will be used in Stage 3 for <b>Dynamic Safety Stock Prediction</b> and <b>Auto Procurement Optimization</b>.</li>
+    </ul>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+# ============================================================
 # FOOTER
 # ============================================================
 
