@@ -20,10 +20,17 @@ def render_html_table(
     HEADER_HEIGHT = 60
     PADDING = 30
 
+    MAX_ROWS = 600
+
+    if len(df) > MAX_ROWS:
+        st.caption(f"Showing first {MAX_ROWS} rows out of {len(df)} rows")
+        df = df.head(MAX_ROWS)
+
     rows = len(df)
+
     calculated_height = HEADER_HEIGHT + (rows * ROW_HEIGHT) + PADDING
     final_height = min(calculated_height, max_height)
-
+    
     table_html = df.to_html(
         index=False,
         classes="display",
